@@ -52,5 +52,12 @@ cd ~/IsaacLab/projects/dexgen_model
 ```
 dexgen_model/data.py     dexdata → 압축 cache, window 샘플링, state/motion/action 분리
 dexgen_model/models.py   KeypointDiffusion, InverseDynamics, DDPMSchedule (DDIM + guidance)
+dexgen_model/controller.py  closed-loop DexGen 제어기 (history, DDIM+ID), keypoint Jacobian guide
 train.py                 한 데이터 원천에 대해 4개 network 학습
+scripts/eval_samples.py  validation window에서 best-of-N endpoint 오차
+scripts/eval_sim.py      sim closed-loop 평가 (docs/sim_eval.md)
 ```
+
+## sim 평가
+
+`docs/sim_eval.md`에 정리했다. `logs/eval_sim_v1.sh`로 다시 돌릴 수 있다.
