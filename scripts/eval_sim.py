@@ -60,6 +60,9 @@ p.add_argument("--ddim_steps", type=int, default=10)
 p.add_argument("--num_envs", type=int, default=512)
 p.add_argument("--steps", type=int, default=1200, help="control steps per condition (20 Hz)")
 p.add_argument("--seed", type=int, default=0)
+p.add_argument("--policy_warmup", type=int, default=0,
+               help="DexGen conditions: the clean RL policy acts for the first N steps of every episode "
+                    "(data collected with skip_first_steps=N never covers the reset transient)")
 p.add_argument("--out", default=None, help="json result path (default: next to the DexGen checkpoint)")
 p.add_argument("--headless", action=argparse.BooleanOptionalAction, default=True)
 args, overrides = p.parse_known_args()
@@ -181,21 +184,24 @@ def run(cond: str, first: bool) -> dict:
     track, guide_err, n_track = 0.0, 0.0, 0
     jac_err, motion, n_motion = 0.0, 0.0, 0
     prev_kp = prev_q = prev_pred = prev_guide = None
+    prev_warm = torch.zeros(n, dtype=torch.bool, device=dev)
     for _ in range(args.steps):
         state = adapter.read_state()
         kp = ctrl.keypoints(state)
         if prev_kp is not None:  # 1-step tracking of the previous command (envs not reset in between)
             ok = ~just_reset
+            ok_t = ok & ~prev_warm                                                            # DexGen acted
             real = (kp - prev_kp)[ok]
             lin = jac.displacement(state["joint_pos"] - prev_q)[ok]                          # first-order J dq
             jac_err += (real - lin).norm(dim=-1).mean(-1).sum().item()
             motion += real.norm(dim=-1).mean(-1).sum().item()
             n_motion += int(ok.sum())
             if prev_pred is not None:
-                track += (real - prev_pred[ok]).norm(dim=-1).mean(-1).sum().item()
-                n_track += int(ok.sum())
+                real_t = (kp - prev_kp)[ok_t]
+                track += (real_t - prev_pred[ok_t]).norm(dim=-1).mean(-1).sum().item()
+                n_track += int(ok_t.sum())
                 if prev_guide is not None:
-                    guide_err += (real - prev_guide[ok]).norm(dim=-1).mean(-1).sum().item()
+                    guide_err += (real_t - prev_guide[ok_t]).norm(dim=-1).mean(-1).sum().item()
         prev_pred = prev_guide = None
         if cond in ("policy", "noisy") or "+" in cond:
             a = E["policy"](obs)
@@ -212,6 +218,12 @@ def run(cond: str, first: bool) -> dict:
             da, dx = ctrl.act(guide)
             prev_pred = dx[:, 0]
             a = (da / scale).clamp(-1.0, 1.0)
+            prev_warm = ep_steps < args.policy_warmup
+            if prev_warm.any():
+                a_pol = E["policy"](obs)
+                if E["action_mask"] is not None:
+                    a_pol = a_pol * E["action_mask"]
+                a = torch.where(prev_warm[:, None], a_pol, a)
         obs, post, done, reason = adapter.step(a)
         # task progress
         if args.task == "nut_goal":
@@ -251,7 +263,7 @@ def run(cond: str, first: bool) -> dict:
 
 results = {"task": args.task, "ckpt": args.ckpt, "policy_ckpt": policy_ckpt, "version": ctrl.version,
            "noise": args.noise, "guide_scale": args.guide_scale, "ddim_steps": args.ddim_steps,
-           "num_envs": args.num_envs, "steps": args.steps, "overrides": overrides, "conditions": []}
+           "num_envs": args.num_envs, "steps": args.steps, "policy_warmup": args.policy_warmup, "overrides": overrides, "conditions": []}
 for ci, cond in enumerate(args.conditions):
     t0 = time.time()
     r = run(cond, ci == 0)
@@ -260,7 +272,8 @@ for ci, cond in enumerate(args.conditions):
     print(f"[eval] {json.dumps(r)}", flush=True)
 
 out = args.out or os.path.join(os.path.dirname(os.path.abspath(args.ckpt)),
-                               f"eval_{args.task}_{ctrl.version}_n{args.noise}_g{args.guide_scale}.json")
+                               f"eval_{args.task}_{ctrl.version}_n{args.noise}_g{args.guide_scale}"
+                               + (f"_w{args.policy_warmup}" if args.policy_warmup else "") + ".json")
 with open(out, "w") as f:
     json.dump(results, f, indent=1)
 print(f"[eval] saved {out}", flush=True)
