@@ -60,4 +60,6 @@ scripts/eval_sim.py      sim closed-loop 평가 (docs/sim_eval.md)
 
 ## sim 평가
 
-`docs/sim_eval.md`에 정리했다. `logs/eval_sim_v1.sh`로 다시 돌릴 수 있다.
+`docs/sim_eval.md`에 정리했다. `logs/eval_sim_v1.sh`(warmup 0)와 `logs/eval_sim_warmup6.sh`(v1과 v2, warmup 6)로 다시 돌릴 수 있다.
+
+- **v2 모델:** `dexdata/data/v2`(episode 첫 6 step 제외)로 같은 설정에서 학습했다. 기본 모델은 v1이고, 평가할 때 첫 6 step은 RL 정책이 맡는다(`--policy_warmup 6`, 기본값).

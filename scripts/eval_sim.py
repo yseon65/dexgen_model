@@ -60,7 +60,7 @@ p.add_argument("--ddim_steps", type=int, default=10)
 p.add_argument("--num_envs", type=int, default=512)
 p.add_argument("--steps", type=int, default=1200, help="control steps per condition (20 Hz)")
 p.add_argument("--seed", type=int, default=0)
-p.add_argument("--policy_warmup", type=int, default=0,
+p.add_argument("--policy_warmup", type=int, default=6,
                help="DexGen conditions: the clean RL policy acts for the first N steps of every episode "
                     "(data collected with skip_first_steps=N never covers the reset transient)")
 p.add_argument("--out", default=None, help="json result path (default: next to the DexGen checkpoint)")

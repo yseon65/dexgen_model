@@ -83,6 +83,40 @@
   - 이번 설정에서 nut_goal은 s = 0.3이 가장 낫다.
 - **tips와 tips_mid:** 큰 차이가 없다. 단독 DexGen과 nutbolt에서는 tips가 조금 낫다.
 
+## 추가 (2026-10-13): reset 직후 warmup과 v2 데이터
+
+- **reset 직후 0.3 s의 큰 가속도.** reset pose가 정지 상태가 아니라서, 손가락이 너트 접촉에 밀려 자리를 잡는 동안 관절 가속도가 정상의 약 3.7배다 (`dexscrew/scripts/measure_finger_jitter.py`의 `by_age`).
+- **v2 데이터:** 같은 정책과 명령으로 다시 수집하되 episode 첫 6 step을 버렸다 (`dexdata/data/v2`, `--skip_first_steps 6`). 모델은 v1과 같은 설정으로 학습했다 (`logs/pipeline_v2.sh`).
+- **warmup 평가:** DexGen 조건에서 각 episode의 첫 6 step은 RL 정책이 움직인다 (`--policy_warmup 6`, 이제 기본값). 그동안 DexGen history가 채워진다. 이 6 step은 추종 오차에서 뺀다. 위의 결과 표는 warmup 0이다.
+
+### nut_goal (낙하/분, 목표 도달/분)
+
+| 조건 | v1 warmup 0 | v1 warmup 6 | v2 warmup 6 |
+|---|---|---|---|
+| tips_mid, dexgen 단독 | 60.4 / 5 | **34.8** / 16 | 34.6 / 14 |
+| tips_mid, policy+dexgen | 12.6 / 237 | **10.5 / 256** | 10.8 / 203 |
+| tips_mid, noisy+dexgen | 12.7 / 178 | **10.8 / 193** | 11.2 / 160 |
+| tips, dexgen 단독 | 46.1 / 6 | **30.1** / 15 | 33.6 / 14 |
+| tips, policy+dexgen | 11.4 / 204 | **10.0 / 216** | 10.8 / 202 |
+| tips, noisy+dexgen | 11.8 / 143 | 11.0 / 153 | 11.1 / 135 |
+
+정책 단독은 9.65 / 554, noisy는 15.5 / 324다.
+
+### nutbolt (너트 회전 rad/s, 낙하 없음)
+
+| 조건 | v1 warmup 6 | v2 warmup 6 |
+|---|---|---|
+| tips_mid: dexgen / policy+dexgen / noisy+dexgen | 0.32 / 0.58 / 0.50 | 0.37 / 0.60 / 0.51 |
+| tips: dexgen / policy+dexgen / noisy+dexgen | 0.42 / 0.57 / 0.53 | 0.39 / 0.49 / 0.45 |
+
+- **warmup 효과가 크다.** DexGen 단독의 낙하가 60에서 35/분으로 줄었다. guidance를 주면 낙하가 정책 단독 수준(10.5 vs 9.65)이 된다. noisy+dexgen(10.8)이 noisy 정책 단독(15.5)보다 낙하가 적어, safety layer 효과가 분명해졌다.
+- **v2는 v1과 같거나 조금 못하다.** 낙하는 비슷하고, nut_goal 목표 도달은 v2가 약 20% 적다. nutbolt는 섞여 있다. 학습과 평가 모두 seed 하나라 작은 차이는 noise일 수 있다.
+- **정리:** reset 과도 구간은 데이터에서 빼는 것보다 제어할 때 정책이 시작을 맡는 쪽이 낫다. v1 모델 + warmup 6을 기본으로 쓰고, v2 모델과 데이터도 남겨 둔다.
+- **checkpoint:**
+  - v1: `runs/2026-10-11_12-22-15_{dexgen_src,dexscrew_src}`
+  - v2: `runs/2026-10-12_19-14-44_dexgen_src_v2`, `runs/2026-10-12_19-24-45_dexscrew_src_v2`
+  - warmup 결과 json은 각 checkpoint 옆의 `eval_*_w6.json`이다. 다시 돌리려면 `logs/eval_sim_warmup6.sh`를 쓴다.
+
 ## 다음 후보
 
 1. **mode 조건 학습:** 회전 방향과 style을 mode 라벨로 붙여 학습하고, 평가 때 mode를 고정한다. step마다 갈래가 바뀌는 문제를 줄이는 것이 목적이다.

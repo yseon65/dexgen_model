@@ -39,7 +39,7 @@ echo "[pipeline] eval $(date)"
 G=$(ls -d runs/*_dexgen_src_v2 | tail -1)
 S=$(ls -d runs/*_dexscrew_src_v2 | tail -1)
 for v in tips_mid tips; do
-  $PY -u scripts/eval_sim.py --task nut_goal --ckpt $G/${v}_last.pt --num_envs 512 --steps 1200 > $L/eval_v2_nut_goal_${v}.log 2>&1
-  $PY -u scripts/eval_sim.py --task nutbolt --ckpt $S/${v}_last.pt --num_envs 512 --steps 1200 > $L/eval_v2_nutbolt_${v}.log 2>&1
+  $PY -u scripts/eval_sim.py --task nut_goal --ckpt $G/${v}_last.pt --num_envs 512 --steps 1200 --policy_warmup 0 > $L/eval_v2_nut_goal_${v}.log 2>&1
+  $PY -u scripts/eval_sim.py --task nutbolt --ckpt $S/${v}_last.pt --num_envs 512 --steps 1200 --policy_warmup 0 > $L/eval_v2_nutbolt_${v}.log 2>&1
 done
 echo "[pipeline] done $(date)"
